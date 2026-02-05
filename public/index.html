@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Brief Parser - AI-Powered DOCX Parser</title>
+    <link rel="stylesheet" href="css/main.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="header-content">
+                <div>
+                    <h1>📄 Brief Parser</h1>
+                    <p class="subtitle">Upload DOCX files to convert and parse marketing briefs with AI</p>
+                </div>
+                <button class="settings-btn" id="settingsBtn">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="3"></circle>
+                        <path d="M12 1v6m0 6v6m0-6h6m-6 0H6"></path>
+                    </svg>
+                    Settings
+                </button>
+            </div>
+        </header>
+
+        <!-- Settings Modal -->
+        <div class="modal" id="settingsModal" style="display: none;">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>⚙️ Settings</h2>
+                    <button class="close-btn" id="closeSettings">✕</button>
+                </div>
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label for="apiKey">OpenRouter API Key</label>
+                        <input 
+                            type="password" 
+                            id="apiKey" 
+                            placeholder="sk-or-v1-..." 
+                            autocomplete="off"
+                        />
+                        <p class="help-text">
+                            Get your API key from <a href="https://openrouter.ai/keys" target="_blank">OpenRouter</a>. 
+                            Your key is stored locally in your browser.
+                        </p>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="modelSelect">Model</label>
+                        <select id="modelSelect">
+                            <optgroup label="Claude (Anthropic) - Recommended">
+                                <option value="anthropic/claude-sonnet-4.5">Claude Sonnet 4.5 (Best for coding & agents)</option>
+                                <option value="anthropic/claude-opus-4.5">Claude Opus 4.5 (Frontier reasoning)</option>
+                                <option value="anthropic/claude-haiku-4.5">Claude Haiku 4.5 (Fast & efficient)</option>
+                                <option value="anthropic/claude-sonnet-4">Claude Sonnet 4</option>
+                                <option value="anthropic/claude-3.7-sonnet">Claude 3.7 Sonnet</option>
+                                <option value="anthropic/claude-3.5-sonnet">Claude 3.5 Sonnet</option>
+                            </optgroup>
+                            <optgroup label="GPT (OpenAI)">
+                                <option value="openai/gpt-5.2">GPT-5.2 (Latest frontier)</option>
+                                <option value="openai/gpt-5">GPT-5</option>
+                                <option value="openai/gpt-5-mini">GPT-5 Mini (Cost-effective)</option>
+                                <option value="openai/gpt-4.1">GPT-4.1 (1M context)</option>
+                                <option value="openai/gpt-4.1-mini">GPT-4.1 Mini</option>
+                                <option value="openai/gpt-4o-mini">GPT-4o Mini (Fast)</option>
+                            </optgroup>
+                            <optgroup label="Gemini (Google)">
+                                <option value="google/gemini-3-flash-preview">Gemini 3 Flash Preview (Fastest)</option>
+                                <option value="google/gemini-flash-1.5">Gemini Flash 1.5</option>
+                                <option value="google/gemini-pro-1.5">Gemini Pro 1.5</option>
+                            </optgroup>
+                            <optgroup label="Other Top Models">
+                                <option value="minimax/minimax-m2.1">MiniMax M2.1 (Coding specialist)</option>
+                                <option value="z-ai/glm-4.7">GLM 4.7 (Programming)</option>
+                                <option value="bytedance-seed/seed-1.6">Seed 1.6 (Multimodal)</option>
+                                <option value="bytedance-seed/seed-1.6-flash">Seed 1.6 Flash (Fast multimodal)</option>
+                            </optgroup>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="maxTokens">Max Tokens</label>
+                        <input 
+                            type="number" 
+                            id="maxTokens" 
+                            placeholder="16000" 
+                            min="1000"
+                            max="128000"
+                            step="1000"
+                        />
+                        <p class="help-text">
+                            Maximum tokens for generation. Higher = more detailed output but slower. Default: 16000
+                        </p>
+                    </div>
+
+                    <div class="form-group">
+                        <label>
+                            <input type="checkbox" id="enableRepairLoop" />
+                            Enable Repair Loop
+                        </label>
+                        <p class="help-text">
+                            When enabled, the system will automatically try to fix validation errors (up to 3 attempts). 
+                            When disabled, shows errors without auto-repair.
+                        </p>
+                    </div>
+
+                    <div class="api-status" id="apiStatus">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="10"></circle>
+                            <line x1="12" y1="8" x2="12" y2="12"></line>
+                            <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                        </svg>
+                        <span id="apiStatusText">No API key configured</span>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn-secondary" id="clearSettings">Clear Settings</button>
+                    <button class="btn-primary" id="saveSettings">Save Settings</button>
+                </div>
+            </div>
+        </div>
+
+        <main>
+            <!-- Format Selection Section -->
+            <div class="format-selection-section" id="formatSelectionSection">
+                <h2 class="format-selection-title">Выберите формат</h2>
+                <p class="format-selection-subtitle">Какой тип контента вы хотите создать?</p>
+                <div class="format-cards">
+                    <div class="format-card" data-format="email">
+                        <div class="format-card-icon">📧</div>
+                        <h3>Email рассылка</h3>
+                        <p>Тема, прехедер, баннеры, блоки контента</p>
+                        <ul class="format-features">
+                            <li>3 варианта темы</li>
+                            <li>3 варианта прехедера</li>
+                            <li>Блоки с CTA</li>
+                        </ul>
+                    </div>
+                    <div class="format-card" data-format="multiformat">
+                        <div class="format-card-icon">📦</div>
+                        <h3>Мультиформат</h3>
+                        <p>Push, SMS, баннеры, лендинги из одного брифа</p>
+                        <ul class="format-features">
+                            <li>Push / SMS (5 вариантов)</li>
+                            <li>Стики, бегущая строка</li>
+                            <li>Онбординг, Яндекс Карты</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <div class="upload-section" id="uploadSection" style="display: none;">
+                <div class="back-to-formats" id="backToFormats">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="15 18 9 12 15 6"></polyline>
+                    </svg>
+                    Назад к выбору формата
+                </div>
+                <div class="selected-format-badge" id="selectedFormatBadge">
+                    <span class="format-icon">📧</span>
+                    <span class="format-name">Email рассылка</span>
+                </div>
+                <div class="upload-area" id="uploadArea">
+                    <svg class="upload-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                        <polyline points="17 8 12 3 7 8"></polyline>
+                        <line x1="12" y1="3" x2="12" y2="15"></line>
+                    </svg>
+                    <p class="upload-text">Drop DOCX file here or click to upload</p>
+                    <input type="file" id="fileInput" accept=".docx" hidden>
+                </div>
+                <div class="file-info" id="fileInfo" style="display: none;">
+                    <span class="file-name" id="fileName"></span>
+                    <button class="clear-btn" id="clearFile">✕</button>
+                </div>
+            </div>
+
+            <div class="processing-section" id="processingSection" style="display: none;">
+                <div class="spinner"></div>
+                <p id="statusText">Processing...</p>
+            </div>
+
+            <div class="markdown-section section-card" id="markdownSection" style="display: none;">
+                <div class="content-header">
+                    <h3>📝 Converted Markdown</h3>
+                    <div class="action-buttons">
+                        <button class="copy-btn btn-icon" data-target="markdownOutput" title="Copy to clipboard">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                            </svg>
+                            Copy
+                        </button>
+                        <button class="btn-primary" id="parseBtn">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polyline points="16 18 22 12 16 6"></polyline>
+                                <polyline points="8 6 2 12 8 18"></polyline>
+                            </svg>
+                            Parse Brief
+                        </button>
+                    </div>
+                </div>
+                <div class="content-body">
+                    <pre id="markdownOutput"></pre>
+                </div>
+            </div>
+
+            <div class="parsed-section section-card" id="parsedSection" style="display: none;">
+                <div class="content-header">
+                    <h3>✅ Parsed Brief</h3>
+                    <div class="action-buttons">
+                        <button class="copy-btn btn-icon" data-target="parsedOutput" title="Copy to clipboard">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                            </svg>
+                            Copy
+                        </button>
+                        <button class="btn-primary" id="generateEmailBtn">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
+                                <polyline points="22,6 12,13 2,6"></polyline>
+                            </svg>
+                            Generate Email
+                        </button>
+                        <button class="btn-secondary" id="newFileBtn">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                <polyline points="17 8 12 3 7 8"></polyline>
+                                <line x1="12" y1="3" x2="12" y2="15"></line>
+                            </svg>
+                            Upload New File
+                        </button>
+                    </div>
+                </div>
+                <div class="content-body">
+                    <pre id="parsedOutput"></pre>
+                </div>
+            </div>
+
+            <div class="generation-section section-card" id="generationSection" style="display: none;">
+                <div class="content-header">
+                    <h3>📧 Generated Email</h3>
+                    <div class="action-buttons">
+                        <button class="copy-btn btn-icon" data-target="generatedOutput" title="Copy to clipboard">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                            </svg>
+                            Copy
+                        </button>
+                    </div>
+                </div>
+                <div class="generation-status" id="generationStatus">
+                    <div class="status-indicator">
+                        <div class="spinner small"></div>
+                        <span id="generationStatusText">Generating...</span>
+                    </div>
+                    <div class="generation-attempts" id="generationAttempts" style="display: none;">
+                        Attempt <span id="attemptNumber">1</span> / <span id="maxAttempts">3</span>
+                    </div>
+                </div>
+                <div id="violationsList" class="violations-list" style="display: none;"></div>
+                <button class="btn-secondary explain-errors-btn" id="explainErrorsBtn" style="display: none;">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
+                        <line x1="12" y1="17" x2="12.01" y2="17"></line>
+                    </svg>
+                    Explain Errors
+                </button>
+                <div id="errorExplanationSection" class="error-explanation-section" style="display: none;">
+                    <div class="explanation-header">
+                        <h4>🤖 AI Error Analysis</h4>
+                    </div>
+                    <div id="errorExplanationContent" class="explanation-content"></div>
+                </div>
+                <div class="content-body">
+                    <pre id="generatedOutput"></pre>
+                </div>
+            </div>
+
+            <div class="feedback-section section-card" id="feedbackSection" style="display: none;">
+                <div class="content-header">
+                    <h3>💬 Provide Feedback</h3>
+                </div>
+                <div class="content-body">
+                    <div class="feedback-form">
+                        <label for="feedbackRating">How would you rate this generation?</label>
+                        <div class="rating-buttons">
+                            <button class="rating-btn" data-rating="1">😞 Poor</button>
+                            <button class="rating-btn" data-rating="2">😐 Fair</button>
+                            <button class="rating-btn" data-rating="3">🙂 Good</button>
+                            <button class="rating-btn" data-rating="4">😊 Very Good</button>
+                            <button class="rating-btn" data-rating="5">🤩 Excellent</button>
+                        </div>
+                        <input type="hidden" id="feedbackRating" value="">
+                        
+                        <label for="feedbackComments" style="margin-top: 20px;">Comments (optional):</label>
+                        <textarea id="feedbackComments" rows="4" placeholder="What worked well? What could be improved?"></textarea>
+                        
+                        <div class="feedback-actions">
+                            <button class="btn-primary" id="submitFeedbackBtn" disabled>
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"></path>
+                                    <polyline points="17 21 17 13 7 13 7 21"></polyline>
+                                    <polyline points="7 3 7 8 15 8"></polyline>
+                                </svg>
+                                Submit & Download Report
+                            </button>
+                            <button class="btn-secondary" id="skipFeedbackBtn">Skip Feedback</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="error-section" id="errorSection" style="display: none;">
+                <div class="error-box">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <line x1="15" y1="9" x2="9" y2="15"></line>
+                        <line x1="9" y1="9" x2="15" y2="15"></line>
+                    </svg>
+                    <p id="errorText"></p>
+                    <button class="retry-btn" id="retryBtn">Try Again</button>
+                </div>
+            </div>
+        </main>
+
+        <footer>
+            <p>Powered by OpenRouter AI | <a href="https://github.com" target="_blank">GitHub</a></p>
+        </footer>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/turndown@7.1.2/dist/turndown.min.js"></script>
+    <script src="../src/core/parsing-spec.js"></script>
+    <script src="../src/core/parserMultiformat.js"></script>
+    <script src="../src/generation/knowledgeLoader.js"></script>
+    <script src="../src/generation/validator.js"></script>
+    <script src="../src/generation/validatorMultiformat.js?v=3"></script>
+    <script src="../src/generation/promptComposer.js"></script>
+    <script src="../src/generation/promptComposerMultiformat.js?v=3"></script>
+    <script src="../src/generation/generateEmail.js"></script>
+    <script src="../src/generation/generateMultiformat.js?v=3"></script>
+    <script src="js/app.js?v=3"></script>
+</body>
+</html>

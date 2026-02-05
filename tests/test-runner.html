@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Validator Tests - Brief Parser</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 1000px;
+            margin: 2rem auto;
+            padding: 2rem;
+            background: #f9fafb;
+        }
+        h1 {
+            color: #1f2937;
+        }
+        .test-result {
+            padding: 0.75rem 1rem;
+            margin: 0.5rem 0;
+            border-radius: 0.5rem;
+            font-family: monospace;
+        }
+        .test-pass {
+            background: #d1fae5;
+            color: #065f46;
+            border-left: 4px solid #10b981;
+        }
+        .test-fail {
+            background: #fee2e2;
+            color: #991b1b;
+            border-left: 4px solid #ef4444;
+        }
+        .test-error {
+            margin-left: 2rem;
+            color: #7f1d1d;
+            font-size: 0.9rem;
+        }
+        .summary {
+            margin-top: 2rem;
+            padding: 1.5rem;
+            background: white;
+            border-radius: 0.5rem;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+        .summary h2 {
+            margin-top: 0;
+        }
+        .stats {
+            display: flex;
+            gap: 2rem;
+            margin-top: 1rem;
+        }
+        .stat {
+            font-size: 1.5rem;
+            font-weight: 600;
+        }
+        .stat.pass { color: #10b981; }
+        .stat.fail { color: #ef4444; }
+    </style>
+</head>
+<body>
+    <h1>📋 Validator Test Suite</h1>
+    <div id="results"></div>
+    <div class="summary" id="summary"></div>
+
+    <script src="../src/generation/validator.js"></script>
+    <script>
+        const results = document.getElementById('results');
+        const summary = document.getElementById('summary');
+        let passed = 0;
+        let failed = 0;
+
+        function test(name, fn) {
+            const resultDiv = document.createElement('div');
+            try {
+                fn();
+                resultDiv.className = 'test-result test-pass';
+                resultDiv.textContent = `✓ ${name}`;
+                passed++;
+            } catch (error) {
+                resultDiv.className = 'test-result test-fail';
+                resultDiv.innerHTML = `✗ ${name}<div class="test-error">${error.message}</div>`;
+                failed++;
+            }
+            results.appendChild(resultDiv);
+        }
+
+        function assert(condition, message) {
+            if (!condition) {
+                throw new Error(message);
+            }
+        }
+
+        // Run tests
+        const { validateEmail } = window.EmailValidator;
+
+        test('Detects forbidden "дегустация" without allowed pattern', () => {
+            const text = 'Приглашаем на дегустацию вин Италии';
+            const result = validateEmail(`ТЕМА\n1. ${text}`, {}, { variantCounts: { subject: 1 } });
+            const violation = result.violations.find(v => v.code === 'FORBIDDEN_DEGUSTATSIYA');
+            assert(violation, 'Should detect forbidden дегустация');
+        });
+
+        test('Allows "дегустация" in correct pattern', () => {
+            const text = 'Мероприятие с дегустацией вин Франции';
+            const result = validateEmail(`ТЕМА\n1. ${text}`, {}, { variantCounts: { subject: 1 } });
+            const violation = result.violations.find(v => v.code === 'FORBIDDEN_DEGUSTATSIYA');
+            assert(!violation, 'Should allow мероприятие с дегустацией вин');
+        });
+
+        test('Detects forbidden "купить" without винотека', () => {
+            const text = 'Купить вино со скидкой';
+            const result = validateEmail(`ТЕМА\n1. ${text}`, {}, { variantCounts: { subject: 1 } });
+            const violation = result.violations.find(v => v.code === 'FORBIDDEN_KUPIT');
+            assert(violation, 'Should detect forbidden купить');
+        });
+
+        test('Allows "купить" with винотека', () => {
+            const text = 'Купить в винотеке SimpleWine';
+            const result = validateEmail(`ТЕМА\n1. ${text}`, {}, { variantCounts: { subject: 1 } });
+            const violation = result.violations.find(v => v.code === 'FORBIDDEN_KUPIT');
+            assert(!violation, 'Should allow купить в винотеке');
+        });
+
+        test('Detects forbidden "покупка"', () => {
+            const text = 'При покупке двух бутылок';
+            const result = validateEmail(`ТЕМА\n1. ${text}`, {}, { variantCounts: { subject: 1 } });
+            const violation = result.violations.find(v => v.code === 'FORBIDDEN_POKUPKA');
+            assert(violation, 'Should detect forbidden покупка');
+        });
+
+        test('Detects forbidden "букет"', () => {
+            const text = 'Изысканный букет красного вина';
+            const result = validateEmail(`ТЕМА\n1. ${text}`, {}, { variantCounts: { subject: 1 } });
+            const violation = result.violations.find(v => v.code === 'FORBIDDEN_BUKET');
+            assert(violation, 'Should detect forbidden букет');
+        });
+
+        test('Detects forbidden "послевкусие"', () => {
+            const text = 'Долгое послевкусие';
+            const result = validateEmail(`ТЕМА\n1. ${text}`, {}, { variantCounts: { subject: 1 } });
+            const violation = result.violations.find(v => v.code === 'FORBIDDEN_POSLEVKUSIE');
+            assert(violation, 'Should detect forbidden послевкусие');
+        });
+
+        test('Detects subject exceeding 30 chars', () => {
+            const text = 'Этот очень длинный заголовок превышает лимит';
+            const result = validateEmail(`ТЕМА\n1. ${text}`, {}, { 
+                variantCounts: { subject: 1 }, 
+                limits: { subject: 30 } 
+            });
+            const violation = result.violations.find(v => v.code === 'CHAR_LIMIT_EXCEEDED');
+            assert(violation, 'Should detect char limit exceeded');
+        });
+
+        test('Allows subject within 30 chars', () => {
+            const text = 'Краткий заголовок';
+            const result = validateEmail(`ТЕМА\n1. ${text}`, {}, { 
+                variantCounts: { subject: 1 }, 
+                limits: { subject: 30 } 
+            });
+            const violation = result.violations.find(v => v.code === 'CHAR_LIMIT_EXCEEDED');
+            assert(!violation, 'Should allow text within limit');
+        });
+
+        test('Detects banned cliché "отличный повод"', () => {
+            const text = 'Отличный повод попробовать';
+            const result = validateEmail(`ТЕМА\n1. ${text}`, {}, { variantCounts: { subject: 1 } });
+            const violation = result.violations.find(v => v.code === 'BANNED_CLICHE');
+            assert(violation, 'Should detect banned cliché');
+        });
+
+        test('Detects insufficient subject variants', () => {
+            const text = `ТЕМА\n1. Первый вариант`;
+            const result = validateEmail(text, {}, { variantCounts: { subject: 3 } });
+            const violation = result.violations.find(v => v.code === 'VARIANT_COUNT_INSUFFICIENT');
+            assert(violation, 'Should detect insufficient variants');
+        });
+
+        test('Accepts correct variant count', () => {
+            const text = `ТЕМА\n1. Первый\n2. Второй\n3. Третий`;
+            const result = validateEmail(text, {}, { variantCounts: { subject: 3 } });
+            const violation = result.violations.find(v => v.code === 'VARIANT_COUNT_INSUFFICIENT' && v.location === 'subject');
+            assert(!violation, 'Should accept correct variant count');
+        });
+
+        test('Detects geography label misuse "Пробуем Пьемонт"', () => {
+            const text = 'Пробуем Пьемонт';
+            const result = validateEmail(`ТЕМА\n1. ${text}`, {}, { variantCounts: { subject: 1 } });
+            const violation = result.violations.find(v => v.code === 'GEOGRAPHY_LABEL_MISUSE');
+            assert(violation, 'Should detect geography label misuse');
+        });
+
+        test('Allows correct geography usage "Вина Пьемонта"', () => {
+            const text = 'Вина Пьемонта в наличии';
+            const result = validateEmail(`ТЕМА\n1. ${text}`, {}, { variantCounts: { subject: 1 } });
+            const violation = result.violations.find(v => v.code === 'GEOGRAPHY_LABEL_MISUSE');
+            assert(!violation, 'Should allow "вина Пьемонта"');
+        });
+
+        test('Detects emojis', () => {
+            const text = 'Вино 🍷 для вас';
+            const result = validateEmail(`ТЕМА\n1. ${text}`, {}, { variantCounts: { subject: 1 } });
+            const violation = result.violations.find(v => v.code === 'EMOJI_FORBIDDEN');
+            assert(violation, 'Should detect emoji');
+        });
+
+        // Display summary
+        summary.innerHTML = `
+            <h2>Test Summary</h2>
+            <div class="stats">
+                <div class="stat pass">✓ ${passed} Passed</div>
+                <div class="stat fail">✗ ${failed} Failed</div>
+                <div class="stat">Total: ${passed + failed}</div>
+            </div>
+        `;
+    </script>
+</body>
+</html>

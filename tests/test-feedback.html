@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Feedback Form</title>
+    <link rel="stylesheet" href="../public/css/main.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Test Feedback Form</h1>
+        <button onclick="showTestFeedback()" style="padding: 10px 20px; margin: 20px 0; font-size: 16px;">Show Feedback Form</button>
+        
+        <div class="feedback-section section-card" id="feedbackSection" style="display: none;">
+            <div class="content-header">
+                <h3>💬 Provide Feedback</h3>
+            </div>
+            <div class="content-body">
+                <div class="feedback-form">
+                    <label for="feedbackRating">How would you rate this generation?</label>
+                    <div class="rating-buttons">
+                        <button class="rating-btn" data-rating="1">😞 Poor</button>
+                        <button class="rating-btn" data-rating="2">😐 Fair</button>
+                        <button class="rating-btn" data-rating="3">🙂 Good</button>
+                        <button class="rating-btn" data-rating="4">😊 Very Good</button>
+                        <button class="rating-btn" data-rating="5">🤩 Excellent</button>
+                    </div>
+                    <input type="hidden" id="feedbackRating" value="">
+                    
+                    <label for="feedbackComments" style="margin-top: 20px;">Comments (optional):</label>
+                    <textarea id="feedbackComments" rows="4" placeholder="What worked well? What could be improved?"></textarea>
+                    
+                    <div class="feedback-actions">
+                        <button class="btn-primary" id="submitFeedbackBtn" disabled>
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"></path>
+                                <polyline points="17 21 17 13 7 13 7 21"></polyline>
+                                <polyline points="7 3 7 8 15 8"></polyline>
+                            </svg>
+                            Submit & Download Report
+                        </button>
+                        <button class="btn-secondary" id="skipFeedbackBtn">Skip Feedback</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Test data
+        let markdownContent = "# Test Brief\n\nThis is test markdown content for feedback testing.";
+        let parsedContent = { title: "Test Email", subject: "Test Subject" };
+        let generatedEmail = "This is a test generated email content.";
+        let feedbackSection = document.getElementById('feedbackSection');
+
+        function showTestFeedback() {
+            console.log('Showing test feedback form');
+            feedbackSection.style.display = 'block';
+            setupFeedbackListeners();
+        }
+
+        function setupFeedbackListeners() {
+            const ratingButtons = document.querySelectorAll('.rating-btn');
+            const feedbackRating = document.getElementById('feedbackRating');
+            const submitFeedbackBtn = document.getElementById('submitFeedbackBtn');
+            const skipFeedbackBtn = document.getElementById('skipFeedbackBtn');
+            
+            console.log('Setting up feedback listeners...');
+            console.log('Found rating buttons:', ratingButtons.length);
+            
+            // Remove old listeners
+            ratingButtons.forEach(btn => {
+                const newBtn = btn.cloneNode(true);
+                btn.parentNode.replaceChild(newBtn, btn);
+            });
+            
+            const newRatingButtons = document.querySelectorAll('.rating-btn');
+            
+            newRatingButtons.forEach((btn, index) => {
+                btn.addEventListener('click', () => {
+                    console.log('Rating button clicked!', btn.dataset.rating);
+                    newRatingButtons.forEach(b => b.classList.remove('selected'));
+                    btn.classList.add('selected');
+                    feedbackRating.value = btn.dataset.rating;
+                    submitFeedbackBtn.disabled = false;
+                    console.log('Submit button enabled');
+                });
+            });
+            
+            submitFeedbackBtn.addEventListener('click', async () => {
+                console.log('Submit clicked');
+                await submitFeedback();
+            });
+            
+            skipFeedbackBtn.addEventListener('click', () => {
+                feedbackSection.style.display = 'none';
+                console.log('Feedback skipped');
+            });
+        }
+
+        async function submitFeedback() {
+            const rating = document.getElementById('feedbackRating').value;
+            const comments = document.getElementById('feedbackComments').value;
+            
+            console.log('submitFeedback called', { rating, comments });
+            
+            if (!rating) {
+                alert('Please select a rating');
+                return;
+            }
+            
+            const report = generateFeedbackReport(rating, comments);
+            downloadReport(report);
+            
+            feedbackSection.style.display = 'none';
+            alert('Thank you for your feedback! Report downloaded.');
+        }
+
+        function generateFeedbackReport(rating, comments) {
+            const timestamp = new Date().toISOString();
+            
+            return `=================================================
+BRIEF PARSER - GENERATION FEEDBACK REPORT
+=================================================
+
+Generated: ${timestamp}
+
+=================================================
+USER FEEDBACK
+=================================================
+
+Rating: ${rating}/5 (${getRatingLabel(rating)})
+
+Comments:
+
+${comments || 'No comments provided'}
+
+=================================================
+ORIGINAL BRIEF (MARKDOWN)
+=================================================
+
+${markdownContent || 'N/A'}
+
+=================================================
+PARSED BRIEF (JSON)
+=================================================
+
+${parsedContent ? JSON.stringify(parsedContent, null, 2) : 'N/A'}
+
+=================================================
+GENERATED EMAIL
+=================================================
+
+${generatedEmail || 'N/A'}
+
+=================================================
+END OF REPORT
+=================================================
+`;
+        }
+
+        function getRatingLabel(rating) {
+            const labels = {
+                '1': 'Poor',
+                '2': 'Fair',
+                '3': 'Good',
+                '4': 'Very Good',
+                '5': 'Excellent'
+            };
+            return labels[rating] || 'Unknown';
+        }
+
+        function downloadReport(content) {
+            const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+            const filename = `feedback-report-${timestamp}.txt`;
+            
+            const blob = new Blob([content], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            
+            console.log('Report downloaded:', filename);
+        }
+    </script>
+</body>
+</html>

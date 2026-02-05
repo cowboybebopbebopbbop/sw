@@ -1,0 +1,13 @@
+{
+  "name": "simplewine-brief-parser",
+  "version": "1.0.0",
+  "description": "AI-powered email generation for SimpleWine marketing campaigns",
+  "type": "module",
+  "scripts": {
+    "serve": "python -m http.server 8000"
+  },
+  "dependencies": {
+    "mammoth": "^1.11.0",
+    "turndown": "^7.2.2"
+  }
+}

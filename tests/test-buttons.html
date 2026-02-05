@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Button Test</title>
+    <style>
+        button { padding: 10px 20px; margin: 10px; font-size: 16px; }
+        .result { margin: 20px; padding: 10px; background: #f0f0f0; }
+    </style>
+</head>
+<body>
+    <h1>Button Test</h1>
+    <button id="settingsBtn">Settings Button</button>
+    <button id="uploadBtn">Upload Button</button>
+    <div class="result" id="result">Click a button...</div>
+    
+    <script>
+        console.log('Test script loaded');
+        
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log('DOM loaded');
+            
+            const settingsBtn = document.getElementById('settingsBtn');
+            const uploadBtn = document.getElementById('uploadBtn');
+            const result = document.getElementById('result');
+            
+            console.log('settingsBtn:', settingsBtn);
+            console.log('uploadBtn:', uploadBtn);
+            
+            settingsBtn.addEventListener('click', () => {
+                console.log('Settings button clicked!');
+                result.textContent = 'Settings button works! ✓';
+                result.style.background = '#90EE90';
+            });
+            
+            uploadBtn.addEventListener('click', () => {
+                console.log('Upload button clicked!');
+                result.textContent = 'Upload button works! ✓';
+                result.style.background = '#90EE90';
+            });
+            
+            console.log('Event listeners attached');
+        });
+    </script>
+</body>
+</html>

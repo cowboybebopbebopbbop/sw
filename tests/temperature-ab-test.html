@@ -1,0 +1,1330 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Temperature A/B Test - Adaptive vs Fixed</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 1400px;
+            margin: 2rem auto;
+            padding: 2rem;
+            background: #f9fafb;
+        }
+        h1 {
+            color: #1f2937;
+        }
+        .test-config {
+            background: white;
+            padding: 1.5rem;
+            border-radius: 0.5rem;
+            margin-bottom: 2rem;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+        .form-group {
+            margin-bottom: 1rem;
+        }
+        .form-group label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+        }
+        .form-group input, .form-group select {
+            width: 100%;
+            padding: 0.5rem;
+            border: 1px solid #d1d5db;
+            border-radius: 0.375rem;
+        }
+        .btn {
+            background: #3b82f6;
+            color: white;
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: 0.5rem;
+            font-weight: 600;
+            cursor: pointer;
+            margin-right: 1rem;
+        }
+        .btn:hover {
+            background: #2563eb;
+        }
+        .btn-secondary {
+            background: #6b7280;
+        }
+        .btn-secondary:hover {
+            background: #4b5563;
+        }
+        .results {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+            margin-top: 2rem;
+        }
+        .strategy-result {
+            background: white;
+            padding: 1.5rem;
+            border-radius: 0.5rem;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+        .strategy-result h2 {
+            margin-top: 0;
+            padding-bottom: 0.5rem;
+            border-bottom: 2px solid #e5e7eb;
+        }
+        .metric {
+            display: flex;
+            justify-content: space-between;
+            padding: 0.75rem 0;
+            border-bottom: 1px solid #f3f4f6;
+        }
+        .metric-label {
+            font-weight: 600;
+            color: #4b5563;
+        }
+        .metric-value {
+            font-weight: 700;
+            font-size: 1.125rem;
+        }
+        .metric-value.good {
+            color: #10b981;
+        }
+        .metric-value.bad {
+            color: #ef4444;
+        }
+        .metric-value.neutral {
+            color: #6b7280;
+        }
+        .violations-list {
+            margin-top: 1rem;
+            padding: 1rem;
+            background: #fef2f2;
+            border-left: 4px solid #ef4444;
+            border-radius: 0.25rem;
+        }
+        .violations-list ul {
+            margin: 0.5rem 0;
+            padding-left: 1.5rem;
+        }
+        .temperature-trace {
+            margin-top: 1rem;
+            padding: 1rem;
+            background: #f0f9ff;
+            border-radius: 0.25rem;
+            font-family: monospace;
+            font-size: 0.875rem;
+        }
+        .loading {
+            text-align: center;
+            padding: 2rem;
+            font-size: 1.25rem;
+            color: #6b7280;
+        }
+        .comparison-winner {
+            margin-top: 2rem;
+            padding: 1.5rem;
+            background: #d1fae5;
+            border: 2px solid #10b981;
+            border-radius: 0.5rem;
+            text-align: center;
+        }
+        .comparison-winner h3 {
+            color: #065f46;
+            margin-top: 0;
+        }
+        .progress {
+            margin: 1rem 0;
+            height: 20px;
+            background: #e5e7eb;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        .progress-bar {
+            height: 100%;
+            background: #3b82f6;
+            transition: width 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+        .cumulative-stats {
+            margin-top: 2rem;
+            padding: 1.5rem;
+            background: white;
+            border-radius: 0.5rem;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+        .stat-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+        .stat-box {
+            padding: 1rem;
+            background: #f9fafb;
+            border-radius: 0.375rem;
+            text-align: center;
+        }
+        .stat-box .label {
+            font-size: 0.875rem;
+            color: #6b7280;
+            margin-bottom: 0.5rem;
+        }
+        .stat-box .value {
+            font-size: 1.875rem;
+            font-weight: 700;
+            color: #1f2937;
+        }
+        .test-history {
+            margin-top: 1rem;
+        }
+        .test-item {
+            padding: 0.75rem;
+            background: #f9fafb;
+            border-left: 3px solid #3b82f6;
+            margin-bottom: 0.5rem;
+            border-radius: 0.25rem;
+        }
+        .test-item.winner-adaptive {
+            border-left-color: #10b981;
+        }
+        .test-item.winner-fixed {
+            border-left-color: #f59e0b;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔬 Temperature Strategy A/B Test</h1>
+    <p>Сравнение фиксированной temperature (0.3) vs адаптивной стратегии на реальных брифах</p>
+    
+    <div class="test-config">
+        <h2>Настройки теста</h2>
+        
+        <div class="form-group">
+            <label for="apiKey">OpenRouter API Key</label>
+            <input type="password" id="apiKey" placeholder="sk-or-v1-...">
+            <p style="font-size:0.875rem;color:#6b7280;margin-top:0.25rem;">
+                Сохранён в localStorage: <span id="apiKeyStatus">❌</span>
+            </p>
+        </div>
+        
+        <div class="form-group">
+            <label for="model">Model</label>
+            <select id="model">
+                <option value="anthropic/claude-sonnet-4.5" selected>Claude Sonnet 4.5 (recommended)</option>
+                <option value="anthropic/claude-sonnet-4">Claude Sonnet 4</option>
+                <option value="anthropic/claude-sonnet-3.5">Claude Sonnet 3.5</option>
+                <option value="openai/gpt-4o">GPT-4o</option>
+            </select>
+        </div>
+        
+        <div class="form-group">
+            <label for="briefSelect">Выберите brief для теста</label>
+            <select id="briefSelect">
+                <option value="blackout">Blackout (promo)</option>
+                <option value="cyber">Киберпонедельник (promo)</option>
+                <option value="digest">Дайджест (digest)</option>
+                <option value="valentines">День влюблённых (promo)</option>
+                <option value="maslenitsa">Масленица (promo)</option>
+                <option value="partner_digest">Партнёрский дайджест (partner)</option>
+                <option value="sommelier">Сомелье за 200 минут (education)</option>
+                <option value="tasting_digest">Дайджест дегустаций (digest)</option>
+            </select>
+        </div>
+        
+        <div class="form-group">
+            <label for="briefFile">Загрузить DOCX brief</label>
+            <input type="file" id="briefFile" accept=".docx" multiple>
+            <p style="font-size:0.875rem;color:#6b7280;margin-top:0.25rem;">
+                Можно выбрать несколько файлов для последовательного тестирования
+            </p>
+        </div>
+        
+        <div class="form-group">
+            <label>
+                <input type="checkbox" id="enableRepairLoop" checked>
+                Enable Repair Loop (max 3 attempts)
+            </label>
+        </div>
+        
+        <button class="btn" id="runTestBtn">▶️ Запустить A/B тест</button>
+        <button class="btn" id="runAllBriefsBtn" style="background:#10b981">▶️▶️ Запустить все брифы</button>
+        <button class="btn btn-secondary" id="clearResultsBtn">🗑️ Очистить результаты</button>
+    </div>
+    
+    <div id="progress" style="display:none">
+        <div class="progress">
+            <div class="progress-bar" id="progressBar">0%</div>
+        </div>
+        <p id="progressText" style="text-align:center; color:#6b7280;"></p>
+    </div>
+    
+    <div id="results" style="display:none">
+        <div class="results">
+            <!-- Strategy A: Fixed Temperature -->
+            <div class="strategy-result">
+                <h2>🔒 Strategy A: Fixed Temperature (0.3)</h2>
+                <div class="temperature-trace" id="fixedTempTrace"></div>
+                
+                <div class="metric">
+                    <span class="metric-label">Success</span>
+                    <span class="metric-value" id="fixedSuccess">-</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Total Attempts</span>
+                    <span class="metric-value neutral" id="fixedAttempts">-</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Final Violations</span>
+                    <span class="metric-value" id="fixedViolations">-</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">ERROR Count</span>
+                    <span class="metric-value" id="fixedErrors">-</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Loop Detected</span>
+                    <span class="metric-value" id="fixedLoop">-</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Duration</span>
+                    <span class="metric-value neutral" id="fixedDuration">-</span>
+                </div>
+                
+                <div id="fixedViolationsList" class="violations-list" style="display:none">
+                    <strong>Нарушения:</strong>
+                    <ul id="fixedViolationsUl"></ul>
+                </div>
+                
+                <details style="margin-top:1rem;border-top:1px solid #e5e7eb;padding-top:1rem">
+                    <summary style="cursor:pointer;font-weight:600;color:#374151">📄 Generated Content</summary>
+                    <pre id="fixedContent" style="margin-top:0.5rem;padding:1rem;background:#f9fafb;border-radius:0.375rem;font-size:0.875rem;white-space:pre-wrap;word-break:break-word;max-height:400px;overflow-y:auto">-</pre>
+                </details>
+            </div>
+            
+            <!-- Strategy B: Adaptive Temperature -->
+            <div class="strategy-result">
+                <h2>🎯 Strategy B: Adaptive Temperature</h2>
+                <div class="temperature-trace" id="adaptiveTempTrace"></div>
+                
+                <div class="metric">
+                    <span class="metric-label">Success</span>
+                    <span class="metric-value" id="adaptiveSuccess">-</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Total Attempts</span>
+                    <span class="metric-value neutral" id="adaptiveAttempts">-</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Final Violations</span>
+                    <span class="metric-value" id="adaptiveViolations">-</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">ERROR Count</span>
+                    <span class="metric-value" id="adaptiveErrors">-</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Loop Detected</span>
+                    <span class="metric-value" id="adaptiveLoop">-</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Duration</span>
+                    <span class="metric-value neutral" id="adaptiveDuration">-</span>
+                </div>
+                
+                <div id="adaptiveViolationsList" class="violations-list" style="display:none">
+                    <strong>Нарушения:</strong>
+                    <ul id="adaptiveViolationsUl"></ul>
+                </div>
+                
+                <details style="margin-top:1rem;border-top:1px solid #e5e7eb;padding-top:1rem">
+                    <summary style="cursor:pointer;font-weight:600;color:#374151">📄 Generated Content</summary>
+                    <pre id="adaptiveContent" style="margin-top:0.5rem;padding:1rem;background:#f9fafb;border-radius:0.375rem;font-size:0.875rem;white-space:pre-wrap;word-break:break-word;max-height:400px;overflow-y:auto">-</pre>
+                </details>
+            </div>
+        </div>
+        
+        <div id="winner" class="comparison-winner" style="display:none">
+            <h3 id="winnerText"></h3>
+            <p id="winnerDetails"></p>
+        </div>
+        
+        <div class="cumulative-stats" id="cumulativeStats" style="display:none">
+            <h2>📊 Cumulative Statistics (All Tests)</h2>
+            
+            <div class="stat-grid">
+                <div class="stat-box">
+                    <div class="label">Total Tests</div>
+                    <div class="value" id="totalTests">0</div>
+                </div>
+                <div class="stat-box">
+                    <div class="label">Adaptive Wins</div>
+                    <div class="value" style="color:#10b981" id="adaptiveWins">0</div>
+                </div>
+                <div class="stat-box">
+                    <div class="label">Fixed Wins</div>
+                    <div class="value" style="color:#f59e0b" id="fixedWins">0</div>
+                </div>
+                <div class="stat-box">
+                    <div class="label">Draws</div>
+                    <div class="value" style="color:#6b7280" id="draws">0</div>
+                </div>
+            </div>
+            
+            <div class="stat-grid" style="margin-top:1rem">
+                <div class="stat-box">
+                    <div class="label">Avg Attempts (Adaptive)</div>
+                    <div class="value" style="font-size:1.5rem" id="avgAttemptsAdaptive">-</div>
+                </div>
+                <div class="stat-box">
+                    <div class="label">Avg Attempts (Fixed)</div>
+                    <div class="value" style="font-size:1.5rem" id="avgAttemptsFixed">-</div>
+                </div>
+                <div class="stat-box">
+                    <div class="label">Loop Detection (Adaptive)</div>
+                    <div class="value" style="font-size:1.5rem" id="loopAdaptive">-</div>
+                </div>
+                <div class="stat-box">
+                    <div class="label">Loop Detection (Fixed)</div>
+                    <div class="value" style="font-size:1.5rem" id="loopFixed">-</div>
+                </div>
+            </div>
+            
+            <div class="test-history">
+                <h3>Test History</h3>
+                <div id="testHistoryList"></div>
+            </div>
+            
+            <button class="btn btn-secondary" id="resetStatsBtn" style="margin-top:1rem">
+                🗑️ Reset All Statistics
+            </button>
+        </div>
+        
+        <div class="cumulative-stats" id="resultsArchive" style="display:none;margin-top:2rem">
+            <h2>📁 Test Results Archive</h2>
+            <p style="color:#6b7280;font-size:0.875rem;margin-bottom:1rem">Click on any test to view generated content</p>
+            <div id="archiveList"></div>
+        </div>
+    </div>
+    
+    <script src="../src/generation/knowledgeLoader.js"></script>
+    <script src="../src/generation/validator.js"></script>
+    <script src="../src/generation/promptComposer.js"></script>
+    
+    <script>
+        // Real API call function
+        async function callLLM(messages, apiKey, model, temperature) {
+            // Add timeout protection (3 minutes for large briefs)
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 180000);
+            
+            try {
+                const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${apiKey}`,
+                        'Content-Type': 'application/json',
+                        'HTTP-Referer': window.location.origin,
+                        'X-Title': 'Temperature A/B Test'
+                    },
+                    body: JSON.stringify({
+                        model: model,
+                        messages: messages,
+                        temperature: temperature,
+                        max_tokens: 16000
+                    }),
+                    signal: controller.signal
+                });
+                
+                clearTimeout(timeoutId);
+                
+                if (!response.ok) {
+                    const error = await response.json().catch(() => ({}));
+                    throw new Error(error.error?.message || `API request failed: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                
+                if (!data.choices || !data.choices[0] || !data.choices[0].message) {
+                    throw new Error('Invalid response from API');
+                }
+                
+                return data.choices[0].message.content;
+            } catch (error) {
+                clearTimeout(timeoutId);
+                if (error.name === 'AbortError') {
+                    throw new Error('API request timeout (3 minutes) - brief may be too large');
+                }
+                throw error;
+            }
+        }
+        
+        // Load real parsed briefs from files
+        const BRIEF_FILES = {
+            'blackout': '../tests/fixtures/briefs/Blackout.md',
+            'cyber': '../tests/fixtures/briefs/Киберпонедельник.md',
+            'digest': '../tests/fixtures/briefs/Дайджест.md',
+            'valentines': '../tests/fixtures/briefs/День влюбленных reminder.md',
+            'maslenitsa': '../tests/fixtures/briefs/Масленица.md',
+            'partner_digest': '../tests/fixtures/briefs/Партнерский дайджест.md',
+            'sommelier': '../tests/fixtures/briefs/Сомелье за 200 минут.md',
+            'tasting_digest': '../tests/fixtures/briefs/Дайджест дегустаций.md'
+        };
+        
+        // Cache for loaded briefs
+        const TEST_BRIEFS = {};
+        
+        // Load brief from file
+        async function loadBrief(key) {
+            if (TEST_BRIEFS[key]) {
+                return TEST_BRIEFS[key];
+            }
+            
+            const response = await fetch(BRIEF_FILES[key]);
+            if (!response.ok) {
+                throw new Error(`Failed to load brief: ${BRIEF_FILES[key]}`);
+            }
+            
+            TEST_BRIEFS[key] = await response.text();
+            return TEST_BRIEFS[key];
+        }
+    
+        
+        let currentBrief = null;
+        
+        // Cumulative statistics tracking
+        let cumulativeStats = {
+            totalTests: 0,
+            adaptiveWins: 0,
+            fixedWins: 0,
+            draws: 0,
+            adaptiveAttempts: [],
+            fixedAttempts: [],
+            adaptiveLoops: 0,
+            fixedLoops: 0,
+            testHistory: [],
+            detailedResults: [] // Store full results with content
+        };
+        
+        // Load cumulative stats from localStorage
+        function loadCumulativeStats() {
+            const saved = localStorage.getItem('temperatureABStats');
+            if (saved) {
+                try {
+                    cumulativeStats = JSON.parse(saved);
+                    // Initialize detailedResults if not present (backward compatibility)
+                    cumulativeStats.detailedResults = cumulativeStats.detailedResults || [];
+                    updateCumulativeStatsDisplay();
+                } catch (e) {
+                    console.error('Failed to load cumulative stats:', e);
+                }
+            }
+        }
+        
+        // Save cumulative stats to localStorage
+        function saveCumulativeStats() {
+            localStorage.setItem('temperatureABStats', JSON.stringify(cumulativeStats));
+        }
+        
+        // Update cumulative stats display
+        function updateCumulativeStatsDisplay() {
+            const statsDiv = document.getElementById('cumulativeStats');
+            if (cumulativeStats.totalTests === 0) {
+                statsDiv.style.display = 'none';
+                return;
+            }
+            
+            statsDiv.style.display = 'block';
+            
+            document.getElementById('totalTests').textContent = cumulativeStats.totalTests;
+            document.getElementById('adaptiveWins').textContent = cumulativeStats.adaptiveWins;
+            document.getElementById('fixedWins').textContent = cumulativeStats.fixedWins;
+            document.getElementById('draws').textContent = cumulativeStats.draws;
+            
+            const avgAdaptive = cumulativeStats.adaptiveAttempts.length > 0
+                ? (cumulativeStats.adaptiveAttempts.reduce((a, b) => a + b, 0) / cumulativeStats.adaptiveAttempts.length).toFixed(1)
+                : '-';
+            const avgFixed = cumulativeStats.fixedAttempts.length > 0
+                ? (cumulativeStats.fixedAttempts.reduce((a, b) => a + b, 0) / cumulativeStats.fixedAttempts.length).toFixed(1)
+                : '-';
+            
+            document.getElementById('avgAttemptsAdaptive').textContent = avgAdaptive;
+            document.getElementById('avgAttemptsFixed').textContent = avgFixed;
+            document.getElementById('loopAdaptive').textContent = `${cumulativeStats.adaptiveLoops} / ${cumulativeStats.totalTests}`;
+            document.getElementById('loopFixed').textContent = `${cumulativeStats.fixedLoops} / ${cumulativeStats.totalTests}`;
+            
+            // Update test history
+            const historyList = document.getElementById('testHistoryList');
+            historyList.innerHTML = cumulativeStats.testHistory
+                .slice(-10) // Show last 10 tests
+                .reverse()
+                .map((test, idx) => {
+                    const winnerClass = test.winner === 'adaptive' ? 'winner-adaptive' : 
+                                       test.winner === 'fixed' ? 'winner-fixed' : '';
+                    const winnerEmoji = test.winner === 'adaptive' ? '🟢' : 
+                                       test.winner === 'fixed' ? '🟡' : '⚪';
+                    return `
+                        <div class="test-item ${winnerClass}">
+                            ${winnerEmoji} <strong>${test.briefName}</strong> - 
+                            Adaptive: ${test.adaptiveAttempts} attempts, 
+                            Fixed: ${test.fixedAttempts} attempts
+                            <span style="color:#6b7280;font-size:0.875rem;margin-left:1rem">${new Date(test.timestamp).toLocaleString()}</span>
+                        </div>
+                    `;
+                })
+                .join('');
+        }
+        
+        // Update archive display
+        function updateArchiveDisplay() {
+            const archiveDiv = document.getElementById('resultsArchive');
+            const archiveList = document.getElementById('archiveList');
+            
+            if (cumulativeStats.detailedResults.length === 0) {
+                archiveDiv.style.display = 'none';
+                return;
+            }
+            
+            archiveDiv.style.display = 'block';
+            
+            archiveList.innerHTML = cumulativeStats.detailedResults
+                .slice().reverse() // Show newest first
+                .map((result, idx) => {
+                    const winnerBadge = result.winner === 'adaptive' ? 
+                        '<span style="background:#10b981;color:white;padding:0.25rem 0.5rem;border-radius:0.25rem;font-size:0.75rem;font-weight:600">ADAPTIVE WIN</span>' :
+                        result.winner === 'fixed' ?
+                        '<span style="background:#f59e0b;color:white;padding:0.25rem 0.5rem;border-radius:0.25rem;font-size:0.75rem;font-weight:600">FIXED WIN</span>' :
+                        '<span style="background:#6b7280;color:white;padding:0.25rem 0.5rem;border-radius:0.25rem;font-size:0.75rem;font-weight:600">DRAW</span>';
+                    
+                    return `
+                        <div style="background:white;border:1px solid #e5e7eb;border-radius:0.5rem;padding:1rem;margin-bottom:1rem">
+                            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.75rem">
+                                <strong style="font-size:1.125rem;color:#1f2937">${result.briefName}</strong>
+                                ${winnerBadge}
+                            </div>
+                            
+                            <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:0.75rem">
+                                <div>
+                                    <div style="font-size:0.875rem;color:#6b7280">🎯 Adaptive</div>
+                                    <div style="font-size:0.875rem;color:#374151">Attempts: ${result.adaptive.attempts} | Violations: ${result.adaptive.violations} | Errors: ${result.adaptive.errorCount}</div>
+                                </div>
+                                <div>
+                                    <div style="font-size:0.875rem;color:#6b7280">🔒 Fixed</div>
+                                    <div style="font-size:0.875rem;color:#374151">Attempts: ${result.fixed.attempts} | Violations: ${result.fixed.violations} | Errors: ${result.fixed.errorCount}</div>
+                                </div>
+                            </div>
+                            
+                            <details>
+                                <summary style="cursor:pointer;font-weight:600;color:#3b82f6;padding:0.5rem;background:#eff6ff;border-radius:0.25rem">📄 View Generated Content</summary>
+                                <div style="margin-top:1rem;display:grid;grid-template-columns:1fr 1fr;gap:1rem">
+                                    <div>
+                                        <h4 style="margin:0 0 0.5rem 0;color:#10b981">Adaptive (${result.adaptive.attempts} attempts)</h4>
+                                        <div style="font-size:0.75rem;color:#6b7280;margin-bottom:0.5rem">Temperature: ${result.adaptive.tempTrace}</div>
+                                        <pre style="padding:0.75rem;background:#f9fafb;border:1px solid #e5e7eb;border-radius:0.375rem;font-size:0.8125rem;white-space:pre-wrap;word-break:break-word;max-height:300px;overflow-y:auto">${result.adaptive.content || 'No content'}</pre>
+                                    </div>
+                                    <div>
+                                        <h4 style="margin:0 0 0.5rem 0;color:#f59e0b">Fixed (${result.fixed.attempts} attempts)</h4>
+                                        <div style="font-size:0.75rem;color:#6b7280;margin-bottom:0.5rem">Temperature: ${result.fixed.tempTrace}</div>
+                                        <pre style="padding:0.75rem;background:#f9fafb;border:1px solid #e5e7eb;border-radius:0.375rem;font-size:0.8125rem;white-space:pre-wrap;word-break:break-word;max-height:300px;overflow-y:auto">${result.fixed.content || 'No content'}</pre>
+                                    </div>
+                                </div>
+                            </details>
+                            
+                            <div style="font-size:0.75rem;color:#9ca3af;margin-top:0.5rem">
+                                ${new Date(result.timestamp).toLocaleString()}
+                            </div>
+                        </div>
+                    `;
+                })
+                .join('');
+        }
+        
+        // Record test result
+        function recordTestResult(briefName, adaptive, fixed) {
+            const fixedScore = calculateScore(fixed);
+            const adaptiveScore = calculateScore(adaptive);
+            
+            let winner;
+            if (adaptiveScore > fixedScore) {
+                winner = 'adaptive';
+                cumulativeStats.adaptiveWins++;
+            } else if (fixedScore > adaptiveScore) {
+                winner = 'fixed';
+                cumulativeStats.fixedWins++;
+            } else {
+                winner = 'draw';
+                cumulativeStats.draws++;
+            }
+            
+            cumulativeStats.totalTests++;
+            cumulativeStats.adaptiveAttempts.push(adaptive.attempts);
+            cumulativeStats.fixedAttempts.push(fixed.attempts);
+            if (adaptive.stuck) cumulativeStats.adaptiveLoops++;
+            if (fixed.stuck) cumulativeStats.fixedLoops++;
+            
+            cumulativeStats.testHistory.push({
+                briefName,
+                timestamp: Date.now(),
+                winner,
+                adaptiveAttempts: adaptive.attempts,
+                fixedAttempts: fixed.attempts,
+                adaptiveScore,
+                fixedScore
+            });
+            
+            // Save detailed results with content
+            cumulativeStats.detailedResults.push({
+                briefName,
+                timestamp: Date.now(),
+                winner,
+                adaptive: {
+                    attempts: adaptive.attempts,
+                    violations: adaptive.violations.length,
+                    errorCount: adaptive.errorCount,
+                    stuck: adaptive.stuck,
+                    duration: adaptive.duration,
+                    content: adaptive.content,
+                    tempTrace: adaptive.tempTrace
+                },
+                fixed: {
+                    attempts: fixed.attempts,
+                    violations: fixed.violations.length,
+                    errorCount: fixed.errorCount,
+                    stuck: fixed.stuck,
+                    duration: fixed.duration,
+                    content: fixed.content,
+                    tempTrace: fixed.tempTrace
+                }
+            });
+            
+            saveCumulativeStats();
+            updateCumulativeStatsDisplay();
+            updateArchiveDisplay();
+        }
+        
+        // Reset cumulative stats
+        document.getElementById('resetStatsBtn').addEventListener('click', () => {
+            if (confirm('Are you sure you want to reset all cumulative statistics?')) {
+                cumulativeStats = {
+                    totalTests: 0,
+                    adaptiveWins: 0,
+                    fixedWins: 0,
+                    draws: 0,
+                    adaptiveAttempts: [],
+                    fixedAttempts: [],
+                    adaptiveLoops: 0,
+                    fixedLoops: 0,
+                    testHistory: [],
+                    detailedResults: []
+                };
+                saveCumulativeStats();
+                updateCumulativeStatsDisplay();
+                updateArchiveDisplay();
+            }
+        });
+        
+        // Load stats on page load
+        loadCumulativeStats();
+        updateArchiveDisplay();
+        
+        // Load saved API key
+        const savedApiKey = localStorage.getItem('openrouter_api_key');
+        if (savedApiKey) {
+            document.getElementById('apiKey').value = savedApiKey;
+            document.getElementById('apiKeyStatus').textContent = '✅';
+        }
+        
+        // Adaptive Temperature Strategy (Conservative Descending v4)
+        // Counter-intuitive: LOWER temp for repairs = better precision
+        function getAdaptiveTemperature(attemptNumber, isStuck, violationCount) {
+            // Don't let stuck detection override descending logic
+            // We descend regardless - stuck detection is just diagnostic
+            
+            if (attemptNumber === 1) {
+                return 0.3; // Start focused
+            }
+            
+            if (attemptNumber === 2) {
+                return 0.2; // More strict adherence to rules
+            }
+            
+            if (attemptNumber >= 3) {
+                return 0.15; // Maximum precision for last attempt
+            }
+            
+            return 0.3;
+        }
+        
+        // Real generation with temperature strategies
+        async function realGenerate(brief, strategy, apiKey, model, onProgress) {
+            const maxAttempts = document.getElementById('enableRepairLoop').checked ? 3 : 1;
+            const startTime = Date.now();
+            const tempTrace = [];
+            const attempts = [];
+            let stuck = false;
+            
+            // Load rules and extract requirements
+            const rules = window.PromptComposer.loadGenerationRules();
+            const requirements = window.PromptComposer.extractSpecRequirements(brief);
+            
+            let lastDraft = null;
+            let lastValidation = null;
+            
+            // Initial generation (temp=1.0)
+            try {
+                onProgress('Generating initial draft (temp=1.0)...', 1, 0);
+                tempTrace.push('Attempt 1 (initial): temp=1.0');
+                
+                const { systemPrompt, userPrompt } = window.PromptComposer.composeGenerationPrompt(
+                    brief,
+                    rules,
+                    requirements
+                );
+                
+                const messages = [
+                    { role: 'system', content: systemPrompt },
+                    { role: 'user', content: userPrompt }
+                ];
+                
+                lastDraft = await callLLM(messages, apiKey, model, 1.0);
+                
+                // Validate
+                onProgress('Validating initial draft...', 1, 0);
+                lastValidation = window.EmailValidator.validateEmail(lastDraft, brief, requirements);
+                
+                const violations = lastValidation.violations || [];
+                attempts.push({
+                    attempt: 1,
+                    temperature: 1.0,
+                    violations: violations.length,
+                    violationCodes: violations.map(v => v.code)
+                });
+                
+                if (lastValidation.valid) {
+                    return {
+                        success: true,
+                        attempts: 1,
+                        violations: [],
+                        errorCount: 0,
+                        stuck: false,
+                        duration: Date.now() - startTime,
+                        tempTrace: tempTrace.join('\n'),
+                        attemptHistory: attempts,
+                        content: lastDraft
+                    };
+                }
+                
+                onProgress(`Found ${violations.length} violations`, 1, violations.length);
+                
+            } catch (error) {
+                throw new Error(`Initial generation failed: ${error.message}`);
+            }
+            
+            // Repair loop
+            for (let i = 2; i <= maxAttempts && lastValidation.violations.length > 0; i++) {
+                try {
+                    let temp;
+                    if (strategy === 'fixed') {
+                        temp = 0.3;
+                    } else {
+                        // Check if stuck (same violations as previous attempt)
+                        if (i > 2) {
+                            const prevSignature = attempts[attempts.length - 1].violationCodes.sort().join('|');
+                            const currentSignature = lastValidation.violations.map(v => v.code).sort().join('|');
+                            stuck = (prevSignature === currentSignature);
+                        }
+                        
+                        temp = getAdaptiveTemperature(i - 1, stuck, lastValidation.violations.length);
+                    }
+                    
+                    tempTrace.push(`Attempt ${i} (repair ${i-1}): temp=${temp}${stuck ? ' (stuck detected!)' : ''}`);
+                    onProgress(`Repair attempt ${i-1} (temp=${temp})...`, i, lastValidation.violations.length);
+                    
+                    const { systemPrompt, userPrompt } = window.PromptComposer.composeRepairPrompt(
+                        brief,
+                        rules,
+                        requirements,
+                        lastDraft,
+                        lastValidation.violations
+                    );
+                    
+                    const messages = [
+                        { role: 'system', content: systemPrompt },
+                        { role: 'user', content: userPrompt }
+                    ];
+                    
+                    lastDraft = await callLLM(messages, apiKey, model, temp);
+                    
+                    // Validate repair
+                    onProgress(`Validating repair ${i-1}...`, i, null);
+                    lastValidation = window.EmailValidator.validateEmail(lastDraft, brief, requirements);
+                    
+                    const violations = lastValidation.violations || [];
+                    attempts.push({
+                        attempt: i,
+                        temperature: temp,
+                        violations: violations.length,
+                        violationCodes: violations.map(v => v.code),
+                        stuck
+                    });
+                    
+                    if (lastValidation.valid) {
+                        return {
+                            success: true,
+                            attempts: i,
+                            violations: [],
+                            errorCount: 0,
+                            stuck: false,
+                            duration: Date.now() - startTime,
+                            tempTrace: tempTrace.join('\n'),
+                            attemptHistory: attempts,
+                            content: lastDraft
+                        };
+                    }
+                    
+                    // Check if stuck (for fixed strategy)
+                    if (strategy === 'fixed' && i > 2) {
+                        const sig1 = attempts[attempts.length - 2].violationCodes.sort().join('|');
+                        const sig2 = attempts[attempts.length - 1].violationCodes.sort().join('|');
+                        if (sig1 === sig2) {
+                            stuck = true;
+                            break;
+                        }
+                    }
+                    
+                } catch (error) {
+                    console.error(`Repair attempt ${i} failed:`, error);
+                    // Continue to next attempt
+                }
+            }
+            
+            // Failed to repair
+            const finalViolations = lastValidation.violations || [];
+            const errorCount = finalViolations.filter(v => v.severity === 'ERROR').length;
+            
+            return {
+                success: false,
+                attempts: attempts.length,
+                violations: finalViolations,
+                errorCount,
+                stuck,
+                duration: Date.now() - startTime,
+                tempTrace: tempTrace.join('\n'),
+                attemptHistory: attempts,
+                content: lastDraft
+            };
+        }
+        
+        // Mock generation function
+        async function mockGenerate(brief, strategy, onProgress) {
+            const startTime = Date.now();
+            const maxAttempts = 3;
+            let attempts = [];
+            let stuck = false;
+            
+            // Initial generation
+            await sleep(500);
+            onProgress('Генерация initial draft...', 1, 0);
+            
+            // Simulate violations on first attempt (для теста repair loop)
+            let violations = simulateInitialViolations();
+            let tempTrace = [`Attempt 1 (initial): temp=1.0`];
+            
+            attempts.push({
+                attempt: 1,
+                temperature: 1.0,
+                violations: violations.length,
+                violationCodes: violations.map(v => v.code)
+            });
+            
+            // Repair loop
+            for (let i = 2; i <= maxAttempts && violations.length > 0; i++) {
+                await sleep(800);
+                
+                let temp;
+                if (strategy === 'fixed') {
+                    temp = 0.3;
+                } else {
+                    const prevSignature = attempts[attempts.length - 1].violationCodes.sort().join('|');
+                    const currentSignature = violations.map(v => v.code).sort().join('|');
+                    stuck = (prevSignature === currentSignature);
+                    
+                    temp = getAdaptiveTemperature(i - 1, stuck, violations.length);
+                }
+                
+                tempTrace.push(`Attempt ${i} (repair ${i-1}): temp=${temp}${stuck ? ' (stuck detected!)' : ''}`);
+                onProgress(`Repair attempt ${i-1} (temp=${temp})...`, i, violations.length);
+                
+                // Simulate repair results
+                violations = simulateRepairResult(violations, temp, stuck, i);
+                
+                attempts.push({
+                    attempt: i,
+                    temperature: temp,
+                    violations: violations.length,
+                    violationCodes: violations.map(v => v.code),
+                    stuck
+                });
+                
+                // Check if stuck (для fixed strategy)
+                if (strategy === 'fixed' && i > 2) {
+                    const sig1 = attempts[attempts.length - 2].violationCodes.sort().join('|');
+                    const sig2 = attempts[attempts.length - 1].violationCodes.sort().join('|');
+                    if (sig1 === sig2) {
+                        stuck = true;
+                        break;
+                    }
+                }
+            }
+            
+            const duration = Date.now() - startTime;
+            const errorCount = violations.filter(v => v.severity === 'ERROR').length;
+            
+            return {
+                success: violations.length === 0,
+                attempts: attempts.length,
+                violations,
+                errorCount,
+                stuck,
+                duration,
+                tempTrace: tempTrace.join('\n'),
+                attemptHistory: attempts
+            };
+        }
+        
+        function simulateInitialViolations() {
+            const possible = [
+                { code: 'SUBJECT_TOO_LONG', severity: 'ERROR', message: 'Subject превышает 30 символов' },
+                { code: 'TRIWORD_DUPLICATION', severity: 'ERROR', message: 'Дублирование 3-грамм между subject и preheader' },
+                { code: 'LEXICON_BAN_DEGUSTATION', severity: 'ERROR', message: 'Использовано запрещенное слово "дегустация"' },
+                { code: 'INSUFFICIENT_VARIANT', severity: 'WARNING', message: 'Недостаточно вариантов bannerTitle' },
+                { code: 'GEOGRAPHY_LABEL_ABUSE', severity: 'WARNING', message: 'Неправильное использование географических меток' }
+            ];
+            
+            // Возвращаем 3-4 случайных нарушения
+            const count = 3 + Math.floor(Math.random() * 2);
+            return possible.slice(0, count);
+        }
+        
+        function simulateRepairResult(prevViolations, temperature, stuck, attempt) {
+            if (stuck && temperature < 0.5) {
+                // Fixed strategy stuck - no improvement
+                return prevViolations;
+            }
+            
+            // Higher temperature = better chance to fix
+            const fixProbability = Math.min(0.9, 0.3 + temperature);
+            
+            return prevViolations.filter((v, idx) => {
+                // ERROR violations harder to fix
+                if (v.severity === 'ERROR') {
+                    return Math.random() > (fixProbability * 0.8);
+                }
+                return Math.random() > fixProbability;
+            });
+        }
+        
+        function sleep(ms) {
+            return new Promise(resolve => setTimeout(resolve, ms));
+        }
+        
+        // UI Handlers
+        document.getElementById('runTestBtn').addEventListener('click', async () => {
+            const apiKey = document.getElementById('apiKey').value;
+            const model = document.getElementById('model').value;
+            const briefKey = document.getElementById('briefSelect').value;
+            
+            if (!apiKey) {
+                alert('⚠️ Введите OpenRouter API Key');
+                document.getElementById('apiKey').focus();
+                return;
+            }
+            
+            if (!briefKey) {
+                alert('Выберите brief для тестирования');
+                return;
+            }
+            
+            // Save API key
+            localStorage.setItem('openrouter_api_key', apiKey);
+            document.getElementById('apiKeyStatus').textContent = '✅';
+            
+            // Load brief from file
+            try {
+                currentBrief = await loadBrief(briefKey);
+            } catch (error) {
+                alert('Ошибка загрузки брифа: ' + error.message);
+                return;
+            }
+            
+            // Show progress
+            document.getElementById('progress').style.display = 'block';
+            document.getElementById('results').style.display = 'none';
+            document.getElementById('runTestBtn').disabled = true;
+            
+            try {
+                const progressBar = document.getElementById('progressBar');
+                const progressText = document.getElementById('progressText');
+                
+                const updateProgress = (text, attempt, violations) => {
+                    progressText.textContent = text;
+                };
+                
+                progressText.textContent = 'Running Strategy A (Fixed)...';
+                progressBar.style.width = '25%';
+                progressBar.textContent = '25%';
+                
+                const fixedResult = await realGenerate(currentBrief, 'fixed', apiKey, model, updateProgress);
+                
+                progressBar.style.width = '50%';
+                progressBar.textContent = '50%';
+                progressText.textContent = 'Running Strategy B (Adaptive)...';
+                
+                const adaptiveResult = await realGenerate(currentBrief, 'adaptive', apiKey, model, updateProgress);
+                
+                progressBar.style.width = '100%';
+                progressBar.textContent = '100%';
+                progressText.textContent = 'Завершено!';
+                
+                // Display results
+                await sleep(500);
+                displayResults(fixedResult, adaptiveResult);
+                
+            } catch (error) {
+                alert('Ошибка: ' + error.message);
+                console.error('Test error:', error);
+            } finally {
+                document.getElementById('runTestBtn').disabled = false;
+            }
+        });
+        
+        function displayResults(fixed, adaptive) {
+            document.getElementById('progress').style.display = 'none';
+            document.getElementById('results').style.display = 'block';
+            
+            // Fixed strategy
+            document.getElementById('fixedTempTrace').textContent = fixed.tempTrace;
+            document.getElementById('fixedSuccess').textContent = fixed.success ? '✅ Yes' : '❌ No';
+            document.getElementById('fixedSuccess').className = 'metric-value ' + (fixed.success ? 'good' : 'bad');
+            document.getElementById('fixedAttempts').textContent = fixed.attempts;
+            document.getElementById('fixedViolations').textContent = fixed.violations.length;
+            document.getElementById('fixedViolations').className = 'metric-value ' + (fixed.violations.length === 0 ? 'good' : 'bad');
+            document.getElementById('fixedErrors').textContent = fixed.errorCount;
+            document.getElementById('fixedErrors').className = 'metric-value ' + (fixed.errorCount === 0 ? 'good' : 'bad');
+            document.getElementById('fixedLoop').textContent = fixed.stuck ? '⚠️ Yes' : '✅ No';
+            document.getElementById('fixedLoop').className = 'metric-value ' + (fixed.stuck ? 'bad' : 'good');
+            document.getElementById('fixedDuration').textContent = (fixed.duration / 1000).toFixed(1) + 's';
+            
+            if (fixed.violations.length > 0) {
+                document.getElementById('fixedViolationsList').style.display = 'block';
+                const ul = document.getElementById('fixedViolationsUl');
+                ul.innerHTML = fixed.violations.map(v => `<li>[${v.severity}] ${v.code}: ${v.message}</li>`).join('');
+            }
+            
+            // Show generated content
+            document.getElementById('fixedContent').textContent = fixed.content || 'No content generated';
+            
+            // Adaptive strategy
+            document.getElementById('adaptiveTempTrace').textContent = adaptive.tempTrace;
+            document.getElementById('adaptiveSuccess').textContent = adaptive.success ? '✅ Yes' : '❌ No';
+            document.getElementById('adaptiveSuccess').className = 'metric-value ' + (adaptive.success ? 'good' : 'bad');
+            document.getElementById('adaptiveAttempts').textContent = adaptive.attempts;
+            document.getElementById('adaptiveViolations').textContent = adaptive.violations.length;
+            document.getElementById('adaptiveViolations').className = 'metric-value ' + (adaptive.violations.length === 0 ? 'good' : 'bad');
+            document.getElementById('adaptiveErrors').textContent = adaptive.errorCount;
+            document.getElementById('adaptiveErrors').className = 'metric-value ' + (adaptive.errorCount === 0 ? 'good' : 'bad');
+            document.getElementById('adaptiveLoop').textContent = adaptive.stuck ? '⚠️ Yes' : '✅ No';
+            document.getElementById('adaptiveLoop').className = 'metric-value ' + (adaptive.stuck ? 'bad' : 'good');
+            document.getElementById('adaptiveDuration').textContent = (adaptive.duration / 1000).toFixed(1) + 's';
+            
+            if (adaptive.violations.length > 0) {
+                document.getElementById('adaptiveViolationsList').style.display = 'block';
+                const ul = document.getElementById('adaptiveViolationsUl');
+                ul.innerHTML = adaptive.violations.map(v => `<li>[${v.severity}] ${v.code}: ${v.message}</li>`).join('');
+            }
+            
+            // Show generated content
+            document.getElementById('adaptiveContent').textContent = adaptive.content || 'No content generated';
+            
+            // Determine winner
+            displayWinner(fixed, adaptive);
+            
+            // Record test result in cumulative stats
+            const briefSelect = document.getElementById('briefSelect');
+            const briefName = briefSelect.options[briefSelect.selectedIndex].text;
+            recordTestResult(briefName, adaptive, fixed);
+        }
+        
+        function displayWinner(fixed, adaptive) {
+            const winnerDiv = document.getElementById('winner');
+            const winnerText = document.getElementById('winnerText');
+            const winnerDetails = document.getElementById('winnerDetails');
+            
+            winnerDiv.style.display = 'block';
+            
+            // Calculate scores
+            const fixedScore = calculateScore(fixed);
+            const adaptiveScore = calculateScore(adaptive);
+            
+            if (adaptiveScore > fixedScore) {
+                winnerText.textContent = '🏆 Winner: Adaptive Temperature Strategy';
+                winnerDiv.style.background = '#d1fae5';
+                winnerDiv.style.borderColor = '#10b981';
+                winnerText.style.color = '#065f46';
+            } else if (fixedScore > adaptiveScore) {
+                winnerText.textContent = '🏆 Winner: Fixed Temperature Strategy';
+                winnerDiv.style.background = '#dbeafe';
+                winnerDiv.style.borderColor = '#3b82f6';
+                winnerText.style.color = '#1e40af';
+            } else {
+                winnerText.textContent = '🤝 Draw: Both strategies performed equally';
+                winnerDiv.style.background = '#f3f4f6';
+                winnerDiv.style.borderColor = '#6b7280';
+                winnerText.style.color = '#374151';
+            }
+            
+            const improvements = [];
+            if (adaptive.violations.length < fixed.violations.length) {
+                improvements.push(`${fixed.violations.length - adaptive.violations.length} fewer violations`);
+            }
+            if (adaptive.attempts < fixed.attempts) {
+                improvements.push(`${fixed.attempts - adaptive.attempts} fewer attempts`);
+            }
+            if (!adaptive.stuck && fixed.stuck) {
+                improvements.push('avoided loop detection');
+            }
+            if (adaptive.errorCount < fixed.errorCount) {
+                improvements.push(`${fixed.errorCount - adaptive.errorCount} fewer errors`);
+            }
+            
+            if (improvements.length > 0) {
+                winnerDetails.textContent = 'Adaptive strategy: ' + improvements.join(', ');
+            } else {
+                winnerDetails.textContent = 'Both strategies performed similarly on this brief.';
+            }
+        }
+        
+        function calculateScore(result) {
+            let score = 0;
+            if (result.success) score += 100;
+            score -= result.violations.length * 10;
+            score -= result.errorCount * 20;
+            score -= result.attempts * 5;
+            if (result.stuck) score -= 50;
+            return score;
+        }
+        
+        document.getElementById('clearResultsBtn').addEventListener('click', () => {
+            document.getElementById('results').style.display = 'none';
+            document.getElementById('progress').style.display = 'none';
+        });
+        
+        // Run All Briefs handler
+        document.getElementById('runAllBriefsBtn').addEventListener('click', async () => {
+            const apiKey = document.getElementById('apiKey').value;
+            const model = document.getElementById('model').value;
+            const briefSelect = document.getElementById('briefSelect');
+            const allOptions = Array.from(briefSelect.options);
+            
+            if (!apiKey) {
+                alert('⚠️ Введите OpenRouter API Key');
+                document.getElementById('apiKey').focus();
+                return;
+            }
+            
+            if (allOptions.length === 0) {
+                alert('Нет доступных брифов для тестирования');
+                return;
+            }
+            
+            if (!confirm(`Запустить A/B тест для всех ${allOptions.length} брифов? Это займет некоторое время.`)) {
+                return;
+            }
+            
+            const runBtn = document.getElementById('runAllBriefsBtn');
+            const testBtn = document.getElementById('runTestBtn');
+            runBtn.disabled = true;
+            testBtn.disabled = true;
+            
+            try {
+                for (let i = 0; i < allOptions.length; i++) {
+                    const option = allOptions[i];
+                    briefSelect.value = option.value;
+                    
+                    console.log(`\n=== Testing brief ${i + 1}/${allOptions.length}: ${option.text} ===`);
+                    
+                    // Trigger test for this brief
+                    await new Promise((resolve) => {
+                        // Simulate click on runTestBtn
+                        const clickEvent = new Event('click');
+                        document.getElementById('runTestBtn').addEventListener('click', function handler() {
+                            document.getElementById('runTestBtn').removeEventListener('click', handler);
+                            setTimeout(resolve, 1000); // Wait 1s between tests
+                        }, { once: true });
+                        
+                        // Manually trigger the test
+                        (async () => {
+                            const apiKey = document.getElementById('apiKey').value;
+                            const model = document.getElementById('model').value;
+                            const briefKey = briefSelect.value;
+                            
+                            // Load brief from file
+                            try {
+                                currentBrief = await loadBrief(briefKey);
+                            } catch (error) {
+                                console.error('Failed to load brief:', error);
+                                resolve();
+                                return;
+                            }
+                            
+                            document.getElementById('progress').style.display = 'block';
+                            document.getElementById('results').style.display = 'none';
+                            
+                            const progressBar = document.getElementById('progressBar');
+                            const progressText = document.getElementById('progressText');
+                            
+                            const updateProgress = (text) => {
+                                progressText.textContent = `[${i + 1}/${allOptions.length}] ${option.text}: ${text}`;
+                            };
+                            
+                            updateProgress('Running Strategy A (Fixed)...');
+                            progressBar.style.width = '25%';
+                            progressBar.textContent = '25%';
+                            
+                            const fixedResult = await realGenerate(currentBrief, 'fixed', apiKey, model, updateProgress);
+                            
+                            progressBar.style.width = '50%';
+                            progressBar.textContent = '50%';
+                            updateProgress('Running Strategy B (Adaptive)...');
+                            
+                            const adaptiveResult = await realGenerate(currentBrief, 'adaptive', apiKey, model, updateProgress);
+                            
+                            progressBar.style.width = '100%';
+                            progressBar.textContent = '100%';
+                            updateProgress('Завершено!');
+                            
+                            await sleep(500);
+                            displayResults(fixedResult, adaptiveResult);
+                            
+                            resolve();
+                        })();
+                    });
+                }
+                
+                alert(`✅ Все ${allOptions.length} брифов протестированы! Смотрите накопительную статистику ниже.`);
+                
+            } catch (error) {
+                alert('Ошибка при пакетном тестировании: ' + error.message);
+                console.error(error);
+            } finally {
+                runBtn.disabled = false;
+                testBtn.disabled = false;
+            }
+        });
+    </script>
+</body>
+</html>

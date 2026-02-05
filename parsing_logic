@@ -1,0 +1,36 @@
+Key Components:
+1. Campaign Header
+
+Extracts campaign type (promo, digest, reminder, seasonal_content, partner_announce, event) and brand
+2. Metadata Fields
+
+Owner: Maps "Заказчик" to [OWNER]
+Deadline/Send Date: Converts to ISO format (YYYY-MM-DD)
+Audience: Normalizes "SW" to "SimpleWine"
+Idea: Extracts campaign idea and creates outline if multi-block
+Mechanics/Period: Captures promotion mechanics and duration
+Channel: Email communication channel
+3. Content Blocks
+Identifies and structures blocks by type:
+
+subject_preheader: Subject lines with character limits
+hero: Main banner with CTAs
+digest_item: Content blocks in digest emails
+lead_paragraph: Intro text
+partner: Partner offers
+disclaimer: Legal footer
+reminder: Multi-email follow-ups
+4. Block Directives
+
+[LIMIT field<=N]: Character constraints
+[VAR field=N]: Number of variants needed
+[CTA mode=...]: Button/link requirements
+[URL mode=...]: URL availability
+FACTS: Hard data (URLs, mechanics, dates)
+COPY_BASE: Narrative text content
+5. Special Handling
+
+Multi-email campaigns with [EMAIL] tags
+Preserves Russian terminology exactly
+Handles missing data gracefully
+Separates facts from copy for Agent B (The Writer)
