@@ -27,9 +27,8 @@ async function loadKnowledgeFiles() {
         window.SW_LEXICON_AND_BANS = await lexiconResp.text();
         
         // Load global rules
-        const globalRulesResp = await fetch('../knowledge/rules/SW_GLOBAL_RULES.md');
-        if (!globalRulesResp.ok) throw new Error(`Failed to fetch SW_GLOBAL_RULES.md: ${globalRulesResp.status}`);
-        window.SW_GLOBAL_RULES = await globalRulesResp.text();
+    const globalRulesResp = await fetch('../knowledge/rules/SW_GLOBAL_RULES_v1.md');
+    if (!globalRulesResp.ok) throw new Error(`Failed to fetch SW_GLOBAL_RULES_v1.md: ${globalRulesResp.status}`);
         
         console.log('✓ Knowledge files loaded successfully');
         return true;
